@@ -1,0 +1,9 @@
+rnnoise.wasm
+------------
+RNNoise (Xiph.Org / Jean-Marc Valin) - BSD 3-Clause
+WebAssembly derlemesi: @shiguredo/rnnoise-wasm (Shiguredo Inc.) - Apache-2.0
+
+Bu ikili dosya @shiguredo/rnnoise-wasm 2025.1.5 paketinden cikarilmistir.
+Emscripten glue koduna ihtiyac duymaz; sadece 3 import ister:
+  env.__assert_fail, env.emscripten_resize_heap, wasi_snapshot_preview1.fd_write
+Bu importlar src/renderer/worklets/rnnoise-processor.js icinde stub'lanir.

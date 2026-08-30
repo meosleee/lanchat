@@ -1,0 +1,100 @@
+{
+  "name": "lanchat",
+  "productName": "LanChat",
+  "version": "1.0.0",
+  "description": "Hamachi/LAN uzerinde calisan sesli-goruntulu sohbet uygulamasi (Discord alternatifi)",
+  "main": "src/main/main.js",
+  "author": "batuhan",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "server": "node server/standalone.js",
+    "dist:mac": "electron-builder --mac --arm64 --x64",
+    "dist:win": "electron-builder --win --x64",
+    "dist": "electron-builder -mw",
+    "test": "node test/smoke.js",
+    "test:renderer": "electron test/renderer-check.js",
+    "shots": "electron test/screenshots.js",
+    "test:mesh": "electron test/mesh-check.js",
+    "release": "electron-builder --mac --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.batuhan.lanchat",
+    "productName": "LanChat",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "server/**/*",
+      "build/after-pack.js",
+      "package.json",
+      "!**/*.map"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.social",
+      "identity": null,
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "LanChat sesli sohbet icin mikrofonu kullanir.",
+        "NSCameraUsageDescription": "LanChat kamera kullanmaz.",
+        "NSLocalNetworkUsageDescription": "LanChat, yerel agdaki sunucularu bulmak ve baglanmak icin ag erisimi kullanir.",
+        "NSBonjourServices": [
+          "_lanchat._udp"
+        ]
+      },
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "LanChat"
+    },
+    "afterPack": "build/after-pack.js",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "meosleee",
+        "repo": "lanchat"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/meosleee/lanchat.git"
+  }
+}

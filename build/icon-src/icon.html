@@ -1,0 +1,55 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { margin: 0; padding: 0; }
+  html, body { width: 1024px; height: 1024px; background: transparent; overflow: hidden; }
+  .wrap { width: 1024px; height: 1024px; display: grid; place-items: center; }
+
+  .tile {
+    width: 824px; height: 824px;
+    border-radius: 185px;
+    background:
+      radial-gradient(120% 110% at 22% 8%, #7ea2ff 0%, rgba(126,162,255,0) 55%),
+      linear-gradient(145deg, #5b8cff 0%, #6366f1 45%, #8b5cf6 100%);
+    position: relative;
+    display: grid; place-items: center;
+    box-shadow:
+      0 8px 0 rgba(255,255,255,0.12) inset,
+      0 -60px 90px rgba(30, 20, 80, 0.22) inset;
+  }
+
+  /* ust parlama */
+  .tile::before {
+    content: ""; position: absolute; inset: 0;
+    border-radius: 185px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.06) 26%, rgba(255,255,255,0) 46%);
+    pointer-events: none;
+  }
+  /* ince kenar cizgisi */
+  .tile::after {
+    content: ""; position: absolute; inset: 0;
+    border-radius: 185px;
+    border: 3px solid rgba(255,255,255,0.22);
+    pointer-events: none;
+  }
+
+  .bars { display: flex; align-items: center; gap: 40px; height: 420px; position: relative; z-index: 2; }
+  .bars i {
+    display: block; width: 62px; border-radius: 34px;
+    background: #fff;
+    box-shadow: 0 8px 20px rgba(20, 14, 60, 0.22);
+  }
+  .b1 { height: 150px; opacity: 0.80; }
+  .b2 { height: 300px; opacity: 0.92; }
+  .b3 { height: 420px; }
+  .b4 { height: 300px; opacity: 0.92; }
+  .b5 { height: 150px; opacity: 0.80; }
+</style></head>
+<body>
+  <div class="wrap">
+    <div class="tile">
+      <div class="bars">
+        <i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i>
+      </div>
+    </div>
+  </div>
+</body></html>

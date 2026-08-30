@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob: mediastream:; connect-src * ws: wss: data:; font-src 'self';" />
+  <title>LanChat</title>
+  <link rel="stylesheet" href="./styles/base.css" />
+  <link rel="stylesheet" href="./styles/layout.css" />
+  <link rel="stylesheet" href="./styles/components.css" />
+</head>
+<body>
+
+  <!-- ------------------------- Baslik cubugu ------------------------- -->
+  <div id="titlebar">
+    <div class="tb-drag">
+      <span class="tb-title" id="tbTitle">LanChat</span>
+      <span class="tb-sub" id="tbSub"></span>
+    </div>
+    <div class="tb-actions">
+      <button class="tb-btn" id="btnAlwaysOnTop" title="Ustte tut" data-icon="pin"></button>
+      <div class="win-controls" id="winControls">
+        <button class="win-btn" id="winMin" title="Kucult"><svg viewBox="0 0 12 12"><rect x="2" y="5.5" width="8" height="1"/></svg></button>
+        <button class="win-btn" id="winMax" title="Buyut"><svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor"/></svg></button>
+        <button class="win-btn danger" id="winClose" title="Kapat"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" fill="none"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ------------------------- Baglanti ekrani ------------------------ -->
+  <div id="connectScreen" class="screen">
+    <div class="connect-bg"><span></span><span></span><span></span></div>
+
+    <div class="connect-card">
+      <div class="connect-brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>LanChat</h1>
+          <p>Hamachi / yerel ag uzerinde sesli sohbet</p>
+        </div>
+      </div>
+
+      <div class="tabs" id="connectTabs">
+        <button class="tab active" data-tab="join">Sunucuya katil</button>
+        <button class="tab" data-tab="host">Sunucu kur</button>
+      </div>
+
+      <!-- Katil -->
+      <section class="tab-panel active" data-panel="join">
+        <label class="field">
+          <span>Gorunen adin</span>
+          <div class="field-row">
+            <input id="inpName" type="text" maxlength="24" placeholder="Adin" autocomplete="off" />
+            <input id="inpColor" type="color" value="#5b8cff" title="Renk sec" />
+          </div>
+        </label>
+
+        <button class="btn primary big" id="btnAuto">
+          <span class="btn-label">Otomatik bagla</span>
+        </button>
+        <small class="hint">
+          Agi tarar. Calisan bir sunucu varsa dogrudan katilir; yoksa sunucuyu
+          senin bilgisayarinda baslatip icine girer. Kimse bir sey ayarlamaz.
+        </small>
+
+        <div class="found-head">
+          <span>AGDA BULUNANLAR</span>
+          <button class="icon-btn tiny" id="btnRescan" title="Yeniden tara" data-icon="pulse"></button>
+        </div>
+        <div id="foundList" class="found-list"></div>
+
+        <details class="manual" id="manualBox">
+          <summary>Elle adres gir</summary>
+          <div class="manual-body">
+            <input id="inpServer" type="text" placeholder="25.14.88.201:4545" autocomplete="off" spellcheck="false" />
+            <input id="inpPassword" type="password" placeholder="Sunucu sifresi (varsa bos birak)" autocomplete="off" />
+            <small class="hint">Hamachi/Tailscale IP'si <code>25.x.x.x</code> veya <code>100.x.x.x</code> ile baslar. Port yazmazsan 4545 kullanilir.</small>
+            <div id="recentServers" class="recent-list"></div>
+            <button class="btn ghost" id="btnConnect"><span class="btn-label">Baglan</span></button>
+          </div>
+        </details>
+
+        <div class="connect-error" id="connectError"></div>
+      </section>
+
+      <!-- Sunucu kur -->
+      <section class="tab-panel" data-panel="host">
+        <p class="panel-note">
+          Sunucuyu bu bilgisayarda calistir. Arkadaslarin asagidaki adreslerden biriyle baglanir.
+          Sunucu, uygulama acik kaldigi surece calisir.
+        </p>
+        <label class="field">
+          <span>Port</span>
+          <input id="inpPort" type="number" min="1024" max="65535" value="4545" />
+        </label>
+        <label class="field">
+          <span>Sunucu sifresi (istege bagli)</span>
+          <input id="inpHostPassword" type="text" placeholder="Bos birakirsan sifre sorulmaz" autocomplete="off" />
+          <small class="hint">Sunucuyu internete aciyorsan sifre koy; yoksa adresi bilen herkes girebilir.</small>
+        </label>
+        <button class="btn primary big" id="btnHost"><span class="btn-label">Sunucuyu baslat</span></button>
+
+        <div class="row" style="border-bottom:none">
+          <div class="rl">
+            <div class="rt">Acilista otomatik baslat</div>
+            <div class="rd">Uygulamayi her actiginda sunucu kendiliginden calissin</div>
+          </div>
+          <div class="rc">
+            <label class="switch">
+              <input type="checkbox" id="chkAutoHost" />
+              <span class="track"></span><span class="thumb"></span>
+            </label>
+          </div>
+        </div>
+        <div id="hostStatus" class="host-status"></div>
+        <div id="hostAddresses" class="addr-list"></div>
+        <pre id="hostLog" class="host-log"></pre>
+      </section>
+
+      <footer class="connect-foot">
+        <span id="appVersionLine">LanChat</span>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ---------------------------- Ana uygulama ------------------------ -->
+  <div id="app" class="screen hidden">
+
+    <!-- Sol seffaf ray -->
+    <aside id="rail">
+      <button class="rail-server active" id="railHome" title="Sunucu">
+        <span class="rail-mark"></span>
+      </button>
+      <div class="rail-sep"></div>
+      <button class="rail-btn" id="railMic" title="Mikrofon testi" data-icon="wave"></button>
+      <button class="rail-btn" id="railStats" title="Baglanti durumu" data-icon="pulse"></button>
+      <div class="rail-spacer"></div>
+      <button class="rail-btn" id="railSettings" title="Ayarlar" data-icon="gear"></button>
+    </aside>
+
+    <!-- Kanal listesi -->
+    <nav id="sidebar">
+      <header class="side-head">
+        <div>
+          <div class="side-title" id="serverName">Sunucu</div>
+          <div class="side-sub" id="serverAddr"></div>
+        </div>
+        <button class="icon-btn" id="btnLeaveServer" title="Sunucudan ayril" data-icon="logout"></button>
+      </header>
+
+      <div class="side-scroll">
+        <div class="chan-group">
+          <div class="chan-group-head">
+            <span>METIN KANALLARI</span>
+            <button class="icon-btn tiny" id="btnAddText" title="Kanal olustur" data-icon="plus"></button>
+          </div>
+          <ul class="chan-list" id="textChannels"></ul>
+        </div>
+
+        <div class="chan-group">
+          <div class="chan-group-head">
+            <span>SES KANALLARI</span>
+            <button class="icon-btn tiny" id="btnAddVoice" title="Ses odasi olustur" data-icon="plus"></button>
+          </div>
+          <ul class="chan-list" id="voiceChannels"></ul>
+        </div>
+      </div>
+
+      <!-- Ses durumu paneli -->
+      <div id="voicePanel" class="voice-panel hidden">
+        <div class="vp-head">
+          <div class="vp-status">
+            <span class="vp-dot"></span>
+            <div>
+              <div class="vp-state" id="vpState">Ses baglandi</div>
+              <div class="vp-room" id="vpRoom"></div>
+            </div>
+          </div>
+          <button class="icon-btn danger" id="btnLeaveVoice" title="Baglantiyi kes" data-icon="hangup"></button>
+        </div>
+        <div class="vp-actions">
+          <button class="vp-btn" id="btnShareScreen" data-icon="screen"><span>Ekran</span></button>
+          <button class="vp-btn" id="btnNoiseToggle" data-icon="shield"><span>Gurultu</span></button>
+          <button class="vp-btn" id="btnVoiceStats" data-icon="pulse"><span>Durum</span></button>
+        </div>
+      </div>
+
+      <!-- Kullanici cubugu -->
+      <div class="user-bar">
+        <div class="ub-info" id="ubInfo">
+          <div class="avatar" id="ubAvatar"><span></span><i class="mic-ring"></i></div>
+          <div class="ub-text">
+            <div class="ub-name" id="ubName">Ben</div>
+            <div class="ub-sub" id="ubSub">cevrimici</div>
+          </div>
+        </div>
+        <div class="ub-actions">
+          <button class="icon-btn" id="btnMute" title="Mikrofon (Ctrl+Shift+M)" data-icon="mic"></button>
+          <button class="icon-btn" id="btnDeafen" title="Kulaklik (Ctrl+Shift+D)" data-icon="headset"></button>
+          <button class="icon-btn" id="btnSettings" title="Ayarlar" data-icon="gear"></button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Orta bolum -->
+    <main id="main">
+      <header id="chatHeader">
+        <div class="ch-title">
+          <span class="ch-hash" id="chHash">#</span>
+          <span id="chName">genel</span>
+          <span class="ch-topic" id="chTopic"></span>
+        </div>
+        <div class="ch-actions">
+          <div class="conn-pill" id="connPill" title="Sunucu gecikmesi">
+            <span class="bars"><i></i><i></i><i></i></span>
+            <span id="connPing">--</span>
+          </div>
+          <button class="icon-btn" id="btnToggleMembers" title="Uye listesi" data-icon="people"></button>
+          <div class="search-box">
+            <input id="inpSearch" type="text" placeholder="Ara" />
+          </div>
+        </div>
+      </header>
+
+      <!-- Ekran paylasimi sahnesi -->
+      <section id="stage" class="stage hidden">
+        <div class="stage-grid" id="stageGrid"></div>
+        <div class="stage-bar">
+          <span id="stageLabel"></span>
+          <div class="stage-actions">
+            <button class="btn ghost small" id="btnStageFit">Sigdir</button>
+            <button class="btn ghost small" id="btnStagePopout">Ayri pencere</button>
+            <button class="btn ghost small" id="btnStageClose">Kapat</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ses kutucuklari -->
+      <section id="voiceStage" class="voice-stage hidden"></section>
+
+      <div id="messages" class="messages"></div>
+
+      <div id="typingRow" class="typing-row"></div>
+
+      <div id="composer" class="composer">
+        <div class="composer-reply hidden" id="replyBar">
+          <span id="replyText"></span>
+          <button class="icon-btn tiny" id="btnCancelReply" data-icon="close"></button>
+        </div>
+        <div class="composer-attach hidden" id="attachBar"></div>
+        <div class="composer-main">
+          <button class="icon-btn" id="btnAttach" title="Dosya ekle" data-icon="plus"></button>
+          <div class="composer-input" id="inpMessage" contenteditable="true" data-placeholder="Mesaj yaz..." spellcheck="false"></div>
+          <button class="icon-btn" id="btnEmoji" title="Emoji" data-icon="smile"></button>
+          <button class="icon-btn send" id="btnSend" title="Gonder" data-icon="send"></button>
+        </div>
+        <input type="file" id="fileInput" hidden accept="image/*,video/mp4,audio/*,.txt,.log,.json,.zip,.pdf" />
+      </div>
+    </main>
+
+    <!-- Uye listesi -->
+    <aside id="members">
+      <div class="members-scroll">
+        <div class="member-group">
+          <div class="member-group-head" id="onlineHead">CEVRIMICI</div>
+          <ul id="memberList" class="member-list"></ul>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ------------------------------ Katmanlar ------------------------- -->
+  <div id="toasts" class="toasts"></div>
+  <div id="modalRoot"></div>
+  <div id="ctxRoot"></div>
+  <div id="emojiRoot"></div>
+
+  <script src="./vendor/socket.io.min.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
