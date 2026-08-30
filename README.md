@@ -270,11 +270,12 @@ Her seferinde elle dmg/exe dagitmamak icin `electron-updater` bagli.
 
 ### Kurulum (bir kez)
 
-1. GitHub'da bir depo ac ve projeyi push et
-2. `package.json` > `build.publish` > `owner` alanini kendi kullanici adinla degistir:
+Depo ve yayin akisi kurulu: https://github.com/meosleee/lanchat
+
+`package.json` > `build.publish` bu depoyu gosterir:
 
 ```json
-"publish": [{ "provider": "github", "owner": "KULLANICI_ADIN", "repo": "lanchat" }]
+"publish": [{ "provider": "github", "owner": "meosleee", "repo": "lanchat", "releaseType": "release" }]
 ```
 
 ### Yeni surum yayinlama
@@ -285,7 +286,10 @@ git push --follow-tags
 ```
 
 `.github/workflows/release.yml` devreye girer: macOS ve Windows makinelerinde
-paralel derler, testleri kosar ve GitHub Releases'e yukler.
+paralel derler, testleri kosar ve GitHub Releases'e yukler (~90 saniye).
+
+> `releaseType: "release"` ayarlanmazsa electron-builder surumu **taslak**
+> olarak birakir ve guncelleyici taslak surumleri goremez.
 
 ### Kullanici tarafinda ne oluyor
 

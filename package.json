@@ -89,7 +89,8 @@
       {
         "provider": "github",
         "owner": "meosleee",
-        "repo": "lanchat"
+        "repo": "lanchat",
+        "releaseType": "release"
       }
     ]
   },
