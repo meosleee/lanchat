@@ -1,7 +1,7 @@
 {
   "name": "lanchat",
   "productName": "LanChat",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Hamachi/LAN uzerinde calisan sesli-goruntulu sohbet uygulamasi (Discord alternatifi)",
   "main": "src/main/main.js",
   "author": "batuhan",
