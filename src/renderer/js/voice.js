@@ -37,11 +37,7 @@ export class Voice {
     $('#btnStageClose').addEventListener('click', () => this.closeStage());
     $('#btnStageFull').addEventListener('click', () => this.toggleFullscreen());
 
-    document.addEventListener('fullscreenchange', () => {
-      const on = !!document.fullscreenElement;
-      $('#btnStageFull').textContent = on ? 'Tam ekrandan cik' : 'Tam ekran';
-      this.stage.classList.toggle('is-fullscreen', on);
-    });
+    document.addEventListener('fullscreenchange', () => this.syncFullscreenUi());
     $('#btnStageFit').addEventListener('click', () => {
       this.stageGrid.querySelectorAll('.share-frame').forEach((f) => f.classList.toggle('fit'));
     });
@@ -674,6 +670,13 @@ export class Voice {
     }, 1000);
   }
 
+  syncFullscreenUi() {
+    const on = !!document.fullscreenElement;
+    const btn = $('#btnStageFull');
+    if (btn) btn.textContent = on ? 'Tam ekrandan cik' : 'Tam ekran';
+    this.stage.classList.toggle('is-fullscreen', on);
+  }
+
   /** Paylasim karesini gercek tam ekrana al (Esc ile cikilir) */
   async toggleFullscreen() {
     const frame = this.stageGrid.querySelector('.share-frame');
@@ -681,9 +684,12 @@ export class Voice {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
       else await frame.requestFullscreen({ navigationUI: 'hide' });
+      // fullscreenchange olayini beklemeden etiketi hemen dogru duruma getir
+      this.syncFullscreenUi();
     } catch (err) {
-      // Tam ekran reddedilirse en azindan pencere icinde buyut
-      console.warn('[ekran] tam ekran acilamadi:', err.message);
+      // Tam ekran reddedilirse en azindan pencere icinde buyut, ama sessiz kalma
+      console.warn('[ekran] tam ekran acilamadi:', err.name, err.message);
+      toast('Tam ekran acilamadi', `${err.name}: ${err.message}`, 'warn', 5000);
       this.stage.classList.toggle('full');
     }
   }

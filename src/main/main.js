@@ -176,14 +176,8 @@ function createWindow() {
 function setupPermissions() {
   const ses = session.defaultSession;
 
-  ses.setPermissionRequestHandler((_wc, permission, callback) => {
-    const allowed = ['media', 'audioCapture', 'videoCapture', 'display-capture', 'clipboard-read', 'notifications'];
-    callback(allowed.includes(permission));
-  });
-
-  ses.setPermissionCheckHandler((_wc, permission) =>
-    ['media', 'audioCapture', 'videoCapture', 'display-capture', 'notifications'].includes(permission)
-  );
+  // Izin politikasi src/main/permissions.js icinde; testler de ayni modulu kullanir
+  require('./permissions.js').applyTo(ses);
 
   // getDisplayMedia: kendi secicimizden gelen kaynagi kullan.
   // callback gercek bir DesktopCapturerSource bekler, bu yuzden id ile yeniden ariyoruz.

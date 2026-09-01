@@ -50,8 +50,8 @@ app.whenReady().then(async () => {
   await server.start();
   console.log(`\nSunucu 127.0.0.1:${PORT} uzerinde\n`);
 
-  session.defaultSession.setPermissionRequestHandler((_w, _p, cb) => cb(true));
-  session.defaultSession.setPermissionCheckHandler(() => true);
+  // Uygulamanin gercek izin politikasini kullan (test "her seye izin" demesin)
+  require(path.join(ROOT, 'src', 'main', 'permissions.js')).applyTo(session.defaultSession);
 
   ipcMain.handle('settings:get', (e) => settingsByWc.get(e.sender.id));
   ipcMain.handle('settings:set', (e, p) => Object.assign(settingsByWc.get(e.sender.id), p));
@@ -307,17 +307,35 @@ app.whenReady().then(async () => {
   const stageOpen = await js(winB, `!document.querySelector('#stage').classList.contains('hidden')`);
   ok(stageOpen, 'izleyicide paylasim sahnesi acildi');
 
-  const fullscreenInfo = await js(winB, `(() => {
+  // Dugmenin varligina bakmak yetmez: gercekten tam ekrana giriyor mu?
+  // (Electron 'fullscreen' iznini vermezse requestFullscreen sessizce reddedilir.)
+  const enter = await js(winB, `(async () => {
     const btn = document.querySelector('#btnStageFull');
-    const frame = document.querySelector('.share-frame');
+    if (!btn) return { err: 'dugme yok' };
+    btn.click();
+    for (let i = 0; i < 30 && !document.fullscreenElement; i++) {
+      await new Promise(r => setTimeout(r, 100));
+    }
     return {
-      btn: !!btn,
-      label: btn && btn.textContent,
-      canFullscreen: !!(frame && frame.requestFullscreen)
+      active: !!document.fullscreenElement,
+      isFrame: !!(document.fullscreenElement &&
+                  document.fullscreenElement.classList.contains('share-frame')),
+      label: document.querySelector('#btnStageFull').textContent
     };
   })()`);
-  ok(fullscreenInfo.btn && fullscreenInfo.label === 'Tam ekran', 'tam ekran dugmesi var');
-  ok(fullscreenInfo.canFullscreen, 'paylasim karesi tam ekrana alinabiliyor');
+  ok(enter.active, 'tam ekrana gercekten girildi', enter.active ? undefined : (enter.err || 'girilemedi'));
+  ok(enter.isFrame, 'tam ekrana alinan sey paylasim karesi');
+  ok(enter.label === 'Tam ekrandan cik', 'dugme etiketi guncellendi', enter.label);
+
+  const exit = await js(winB, `(async () => {
+    document.querySelector('#btnStageFull').click();
+    for (let i = 0; i < 30 && document.fullscreenElement; i++) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return { stillOn: !!document.fullscreenElement, label: document.querySelector('#btnStageFull').textContent };
+  })()`);
+  ok(!exit.stillOn, 'tam ekrandan cikilabiliyor');
+  ok(exit.label === 'Tam ekran', 'cikista etiket geri donuyor', exit.label);
 
   await js(winA, `(async () => {
     await window.app.mesh.setLocalVideoTrack(null);

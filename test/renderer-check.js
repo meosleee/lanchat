@@ -27,8 +27,8 @@ const ok = (cond, label, extra) => {
 };
 
 app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((_wc, _p, cb) => cb(true));
-  session.defaultSession.setPermissionCheckHandler(() => true);
+  // Uygulamanin gercek izin politikasini kullan (test "her seye izin" demesin)
+  require(path.join(ROOT, 'src', 'main', 'permissions.js')).applyTo(session.defaultSession);
 
   // Uygulamanin kendi IPC kanallari (gercek main.js calismadigi icin taklit)
   ipcMain.handle('settings:get', () => ({
