@@ -35,6 +35,7 @@ export class Chat {
   async openChannel(channelId) {
     this.channelId = channelId;
     this.unread.set(channelId, 0);
+    this.hideJumpButton();
     this.listNode.replaceChildren(el('div', { class: 'empty-state' }, el('div', { class: 'es-mark' }, '...')));
 
     const res = await this.app.net.request('chat:history', { channelId });
@@ -62,6 +63,7 @@ export class Chat {
     const wasBottom = this.atBottom;
     this.render();
     if (wasBottom) this.scrollToBottom();
+    else this.showJumpButton();
   }
 
   onUpdate(msg) {
@@ -342,7 +344,28 @@ export class Chat {
     this.listNode.addEventListener('scroll', () => {
       const { scrollTop, scrollHeight, clientHeight } = this.listNode;
       this.atBottom = scrollHeight - scrollTop - clientHeight < 60;
+      if (this.atBottom) this.hideJumpButton();
     });
+  }
+
+  /** Yukari kaydirmisken gelen mesajlar icin "asagi in" dugmesi */
+  showJumpButton() {
+    this.pendingNew = (this.pendingNew || 0) + 1;
+    if (!this.jumpBtn) {
+      this.jumpBtn = el('button', {
+        class: 'jump-new',
+        onclick: () => { this.scrollToBottom(); this.hideJumpButton(); }
+      }, el('span', { class: 'jn-text' }, ''), el('span', { class: 'jn-arrow' }, ''));
+      $('#composer').prepend(this.jumpBtn);
+    }
+    this.jumpBtn.querySelector('.jn-text').textContent =
+      this.pendingNew === 1 ? '1 yeni mesaj' : `${this.pendingNew} yeni mesaj`;
+    this.jumpBtn.classList.add('show');
+  }
+
+  hideJumpButton() {
+    this.pendingNew = 0;
+    if (this.jumpBtn) this.jumpBtn.classList.remove('show');
   }
 
   bindComposer() {
@@ -504,6 +527,12 @@ export class Chat {
     }
 
     if (!text && !this.attachment) return;
+
+    // Baglanti yokken mesaj sessizce kaybolmasin
+    if (!this.app.net.connected) {
+      toast('Mesaj gonderilemedi', 'Sunucuyla baglanti yok. Yeniden baglaninca tekrar dene.', 'err', 4000);
+      return;
+    }
 
     this.app.net.emitTo('chat:send', {
       channelId: this.channelId,

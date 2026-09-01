@@ -217,60 +217,126 @@ export class Voice {
 
   /* ------------------------------- Kutucuklar ------------------------------ */
 
+  /**
+   * Ses kutucuklarini yerinde guncelle.
+   * Her anlik goruntude DOM'u sifirdan kurmak, kullanicinin surukledigi
+   * ses kaydiricisini elinden aliyordu; bu yuzden mevcut kutucuklar
+   * korunup yalnizca degisen alanlar yazilir.
+   */
   renderTiles() {
     const app = this.app;
+    if (!this.tiles) this.tiles = new Map();
+
     if (!this.channelId) {
       this.voiceStage.classList.add('hidden');
+      this.voiceStage.replaceChildren();
+      this.tiles.clear();
       return;
     }
-    const members = (app.state.voice[this.channelId] || []);
+
+    const members = app.state.voice[this.channelId] || [];
     this.voiceStage.classList.remove('hidden');
 
-    const tiles = members.map((m) => {
-      const isSelf = app.state.self && m.id === app.state.self.id;
-      const stats = isSelf ? null : app.mesh.getStats(m.id);
-
-      const av = avatarNode({ username: m.username, color: m.color }, 56);
-      const tile = el('div', {
-        class: 'vtile',
-        dataset: { peer: m.id },
-        onclick: () => { if (m.screensharing) this.focusShare(isSelf ? 'self' : m.id); },
-        oncontextmenu: (e) => { e.preventDefault(); this.userMenu(m, e.clientX, e.clientY); }
-      },
-        av,
-        el('div', { class: 'vt-name' }, m.username + (isSelf ? ' (sen)' : ''))
-      );
-
-      const badges = el('div', { class: 'vt-badges' });
-      if (m.muted) badges.append(el('span', { 'data-icon': 'mic-off', title: 'Mikrofon kapali' }));
-      if (m.deafened) badges.append(el('span', { 'data-icon': 'headset-off', title: 'Ses kapali' }));
-      if (m.screensharing) badges.append(el('span', { class: 'live', 'data-icon': 'screen', title: 'Ekran paylasiyor' }));
-      if (badges.children.length) tile.append(badges);
-
-      if (stats && stats.rtt != null) {
-        tile.append(el('div', { class: `vt-net ${stats.quality}` }, `${stats.rtt}ms`));
+    const seen = new Set();
+    for (const m of members) {
+      seen.add(m.id);
+      let entry = this.tiles.get(m.id);
+      if (!entry) {
+        entry = this.createTile(m);
+        this.tiles.set(m.id, entry);
       }
+      this.updateTile(entry, m);
+      this.voiceStage.append(entry.root); // sirayi korur, tasima yapmaz
+    }
 
-      if (!isSelf) {
-        const vol = Math.round(app.audio.getUserVolume(m.id) * 100);
-        const slider = el('input', {
-          type: 'range', min: 0, max: 200, value: vol,
-          oninput: (e) => {
-            app.audio.setUserVolume(m.id, Number(e.target.value) / 100);
-            app.saveUserVolume(m.id, Number(e.target.value) / 100);
-            e.target.style.setProperty('--pct', `${Number(e.target.value) / 2}%`);
-          }
-        });
-        slider.style.setProperty('--pct', `${vol / 2}%`);
-        const volWrap = el('div', { class: 'vt-vol', onclick: (e) => e.stopPropagation() }, slider);
-        tile.append(volWrap);
+    for (const [id, entry] of [...this.tiles]) {
+      if (!seen.has(id)) {
+        entry.root.remove();
+        this.tiles.delete(id);
       }
+    }
 
-      return tile;
-    });
-
-    this.voiceStage.replaceChildren(...tiles);
     this.paintSpeaking();
+  }
+
+  createTile(m) {
+    const app = this.app;
+    const isSelf = app.state.self && m.id === app.state.self.id;
+
+    const avatar = avatarNode({ username: m.username, color: m.color }, 56);
+    const name = el('div', { class: 'vt-name' });
+    const badges = el('div', { class: 'vt-badges' });
+    const net = el('div', { class: 'vt-net' });
+
+    const root = el('div', {
+      class: 'vtile',
+      dataset: { peer: m.id },
+      onclick: () => { if (this.tiles.get(m.id) && this.tiles.get(m.id).sharing) this.focusShare(isSelf ? 'self' : m.id); },
+      oncontextmenu: (e) => { e.preventDefault(); this.userMenu(m, e.clientX, e.clientY); }
+    }, avatar, name, badges, net);
+
+    let slider = null;
+    if (!isSelf) {
+      slider = el('input', {
+        type: 'range', min: 0, max: 200,
+        value: Math.round(app.audio.getUserVolume(m.id) * 100),
+        oninput: (e) => {
+          const v = Number(e.target.value);
+          app.audio.setUserVolume(m.id, v / 100);
+          app.saveUserVolume(m.id, v / 100);
+          e.target.style.setProperty('--pct', `${v / 2}%`);
+        }
+      });
+      slider.style.setProperty('--pct', `${Math.round(app.audio.getUserVolume(m.id) * 50)}%`);
+      // Surukleme sirasinda disaridan deger yazilmasin
+      slider.addEventListener('pointerdown', () => { root._dragging = true; });
+      window.addEventListener('pointerup', () => { root._dragging = false; });
+      root.append(el('div', { class: 'vt-vol', onclick: (e) => e.stopPropagation() }, slider));
+    }
+
+    return { root, avatar, name, badges, net, slider, isSelf, sharing: false };
+  }
+
+  updateTile(entry, m) {
+    const app = this.app;
+    const label = m.username + (entry.isSelf ? ' (sen)' : '');
+    if (entry.name.textContent !== label) entry.name.textContent = label;
+
+    if (entry.avatar.style.background !== m.color) entry.avatar.style.background = m.color;
+    const initials = (m.username || '?').trim().slice(0, 2).toUpperCase();
+    const span = entry.avatar.querySelector('span');
+    if (span && span.textContent !== initials) span.textContent = initials;
+
+    // Rozetler yalnizca degistiyse yeniden kurulur
+    const sig = `${!!m.muted}|${!!m.deafened}|${!!m.screensharing}`;
+    if (entry._badgeSig !== sig) {
+      entry._badgeSig = sig;
+      const kids = [];
+      if (m.muted) kids.push(el('span', { 'data-icon': 'mic-off', title: 'Mikrofon kapali' }));
+      if (m.deafened) kids.push(el('span', { 'data-icon': 'headset-off', title: 'Ses kapali' }));
+      if (m.screensharing) kids.push(el('span', { class: 'live', 'data-icon': 'screen', title: 'Ekran paylasiyor' }));
+      entry.badges.replaceChildren(...kids);
+    }
+    entry.sharing = !!m.screensharing;
+    entry.root.classList.toggle('shareable', !!m.screensharing);
+
+    const stats = entry.isSelf ? null : app.mesh.getStats(m.id);
+    if (stats && stats.rtt != null) {
+      entry.net.textContent = `${stats.rtt}ms`;
+      entry.net.className = `vt-net ${stats.quality}`;
+      entry.net.style.display = '';
+    } else {
+      entry.net.style.display = 'none';
+    }
+
+    // Kullanici suruklerken degeri ezme
+    if (entry.slider && !entry.root._dragging) {
+      const v = Math.round(app.audio.getUserVolume(m.id) * 100);
+      if (Number(entry.slider.value) !== v) {
+        entry.slider.value = v;
+        entry.slider.style.setProperty('--pct', `${v / 2}%`);
+      }
+    }
   }
 
   paintSpeaking() {
@@ -551,7 +617,7 @@ export class Voice {
     if (active && stream) {
       this.remoteVideos.set(peerId, stream);
       if (!this.activeShare) this.focusShare(peerId);
-      else this.renderStage();
+      else this.renderStage();  // secici de burada tazelenir
       const name = this.app.userName(peerId);
       toast('Ekran paylasimi', `${name} ekranini paylasiyor`, 'info', 3500);
     } else {
@@ -592,7 +658,7 @@ export class Voice {
 
     this.stageGrid.replaceChildren(frame);
     this.stage.classList.remove('hidden');
-    $('#stageLabel').textContent = name;
+    this.renderShareSwitcher(name);
 
     // kalite bilgisi
     clearInterval(this._stageStatsTimer);
@@ -620,6 +686,32 @@ export class Voice {
       console.warn('[ekran] tam ekran acilamadi:', err.message);
       this.stage.classList.toggle('full');
     }
+  }
+
+  /**
+   * Ayni anda birden fazla kisi paylasiyorsa aralarinda gecis yapilabilsin.
+   * Tek paylasim varsa sadece adi yazar.
+   */
+  renderShareSwitcher(currentName) {
+    const bar = $('#stageLabel');
+    const items = [];
+    if (this.screenStream) items.push({ id: 'self', name: 'Senin ekranin' });
+    for (const id of this.remoteVideos.keys()) items.push({ id, name: this.app.userName(id) });
+
+    if (items.length <= 1) {
+      bar.textContent = currentName || (items[0] ? items[0].name : '');
+      return;
+    }
+
+    bar.replaceChildren(...items.map((it) =>
+      el('button', {
+        class: `share-chip${it.id === this.activeShare ? ' active' : ''}`,
+        onclick: () => this.focusShare(it.id)
+      },
+        el('span', { class: 'sc-dot' }),
+        el('span', {}, it.name)
+      )
+    ));
   }
 
   closeStage() {

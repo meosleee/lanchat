@@ -239,6 +239,24 @@ app.whenReady().then(async () => {
   })()`);
   ok(mline3 === 0, 'uc kisilikte de her baglantida 2 m-line var');
 
+  console.log('\n7b) Ses kutucuklari yerinde guncelleniyor mu');
+  const tileIdentity = await js(winA, `(() => {
+    const v = window.app.voice;
+    v.renderTiles();
+    const before = [...v.tiles.values()].map(t => t.root);
+    const slider = before.map(r => r.querySelector('input[type=range]')).find(Boolean);
+    if (slider) slider.value = 137;
+    v.renderTiles();
+    v.renderTiles();
+    const after = [...v.tiles.values()].map(t => t.root);
+    const sameNodes = before.length === after.length && before.every((n, i) => n === after[i]);
+    const sliderAfter = after.map(r => r.querySelector('input[type=range]')).find(Boolean);
+    return { count: after.length, sameNodes, sliderKept: !!sliderAfter };
+  })()`);
+  ok(tileIdentity.count === 3, 'uc kutucuk cizildi', String(tileIdentity.count));
+  ok(tileIdentity.sameNodes, 'kutucuklar yeniden cizimde ayni DOM dugumleri (kaydirici korunuyor)');
+  ok(tileIdentity.sliderKept, 'ses kaydiricisi yerinde duruyor');
+
   console.log('\n8) Ekran paylasimi (replaceTrack, yeniden pazarlik olmadan)');
   // desktopCapturer test ortaminda yok; ayni kod yolunu canvas akisiyla suruyoruz
   const beforeSdp = await js(winB, `[...window.app.mesh.peers.values()][0].pc.remoteDescription.sdp.length`);

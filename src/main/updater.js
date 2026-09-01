@@ -15,8 +15,7 @@
 
 const { app, shell, ipcMain } = require('electron');
 const path = require('path');
-
-const PLACEHOLDER_OWNER = 'KULLANICI_ADIN';
+const fs = require('fs');
 
 let autoUpdater = null;
 let sendToRenderer = () => {};
@@ -26,28 +25,37 @@ let state = {
   notes: null,
   progress: 0,
   error: null,
+  source: null,          // "owner/repo" - teshis icin
   canAutoInstall: process.platform === 'win32'
 };
 
-function publishConfig() {
+/**
+ * Guncelleme kaynagini oku.
+ *
+ * DIKKAT: Bunu package.json > build.publish uzerinden okumak calismaz -
+ * electron-builder paketlerken package.json'dan "build" alanini siler.
+ * Dogru kaynak, electron-builder'in paketin icine koydugu app-update.yml
+ * dosyasidir; electron-updater da zaten onu kullanir.
+ */
+function readUpdateConfig(filePath) {
   try {
-    const pkg = require(path.join(__dirname, '..', '..', 'package.json'));
-    const pub = pkg.build && pkg.build.publish;
-    return Array.isArray(pub) ? pub[0] : pub || null;
-  } catch {
+    const file = filePath || path.join(process.resourcesPath, 'app-update.yml');
+    const raw = fs.readFileSync(file, 'utf8');
+    const cfg = {};
+    for (const line of raw.split(/\r?\n/)) {
+      const m = /^\s*([A-Za-z][A-Za-z0-9_]*)\s*:\s*(.+?)\s*$/.exec(line);
+      if (m) cfg[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+    return cfg.owner && cfg.repo ? cfg : null;
+  } catch (err) {
+    console.warn('[updater] app-update.yml okunamadi:', err.message);
     return null;
   }
 }
 
-function isConfigured() {
-  const pub = publishConfig();
-  return !!(pub && pub.owner && pub.owner !== PLACEHOLDER_OWNER);
-}
-
 function releasesUrl() {
-  const pub = publishConfig();
-  if (!pub || !pub.owner) return null;
-  return `https://github.com/${pub.owner}/${pub.repo}/releases/latest`;
+  const cfg = readUpdateConfig();
+  return cfg ? `https://github.com/${cfg.owner}/${cfg.repo}/releases/latest` : null;
 }
 
 function push(patch) {
@@ -61,6 +69,7 @@ function init(send) {
   try {
     ({ autoUpdater } = require('electron-updater'));
   } catch (err) {
+    console.warn('[updater] electron-updater yuklenemedi:', err.message);
     push({ status: 'error', error: `electron-updater yuklenemedi: ${err.message}` });
     return;
   }
@@ -70,9 +79,13 @@ function init(send) {
   autoUpdater.allowPrerelease = false;
   autoUpdater.logger = null;
 
-  autoUpdater.on('checking-for-update', () => push({ status: 'checking', error: null }));
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[updater] kontrol ediliyor...');
+    push({ status: 'checking', error: null });
+  });
 
   autoUpdater.on('update-available', (info) => {
+    console.log('[updater] yeni surum bulundu:', info && info.version);
     push({
       status: 'available',
       version: info.version,
@@ -82,7 +95,10 @@ function init(send) {
     if (process.platform === 'win32') autoUpdater.downloadUpdate().catch(() => {});
   });
 
-  autoUpdater.on('update-not-available', () => push({ status: 'none', version: null, progress: 0 }));
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('[updater] guncel:', info && info.version);
+    push({ status: 'none', version: null, progress: 0 });
+  });
 
   autoUpdater.on('download-progress', (p) =>
     push({ status: 'downloading', progress: Math.round(p.percent) }));
@@ -91,33 +107,50 @@ function init(send) {
     push({ status: 'ready', version: info.version, progress: 100 }));
 
   autoUpdater.on('error', (err) => {
+    console.warn('[updater] hata:', String((err && err.message) || err));
     push({ status: 'error', error: String((err && err.message) || err) });
   });
 }
 
 async function check({ silent } = {}) {
   if (!app.isPackaged) {
+    console.log('[updater] paketlenmemis calisma - guncelleme atlandi');
     push({ status: 'unsupported', error: 'Guncelleme yalnizca paketlenmis uygulamada calisir.' });
     return state;
   }
-  if (!isConfigured()) {
+
+  const cfg = readUpdateConfig();
+  if (!cfg) {
+    console.warn('[updater] app-update.yml okunamadi:', path.join(process.resourcesPath, 'app-update.yml'));
     push({
       status: 'unsupported',
-      error: 'Guncelleme kaynagi ayarlanmamis. package.json > build.publish icindeki owner alanini doldur.'
+      error: 'app-update.yml bulunamadi - bu paket yayin yapilandirmasi olmadan derlenmis.'
     });
     return state;
   }
-  if (!autoUpdater) return state;
+  if (!autoUpdater) {
+    push({ status: 'error', error: 'electron-updater hazir degil' });
+    return state;
+  }
+
+  console.log(`[updater] kaynak: ${cfg.owner}/${cfg.repo} (surum ${app.getVersion()})`);
+  push({ source: `${cfg.owner}/${cfg.repo}` });
 
   try {
     await autoUpdater.checkForUpdates();
   } catch (err) {
-    if (!silent) push({ status: 'error', error: String((err && err.message) || err) });
+    const message = String((err && err.message) || err);
+    // Sessiz kontrolde de durumu kaydet: sorunu Ayarlar > Hakkinda'dan gorebilelim
+    console.warn('[updater] kontrol basarisiz:', message);
+    push({ status: 'error', error: message });
   }
   return state;
 }
 
 function setup(send) {
+  const cfg = readUpdateConfig();
+  console.log(`[updater] paketlenmis=${app.isPackaged} surum=${app.getVersion()} ` +
+              `kaynak=${cfg ? cfg.owner + '/' + cfg.repo : 'yok'}`);
   init(send);
 
   ipcMain.handle('update:state', () => ({ ...state, currentVersion: app.getVersion() }));
@@ -159,4 +192,4 @@ function setup(send) {
   setTimeout(() => { check({ silent: true }).catch(() => {}); }, 8000);
 }
 
-module.exports = { setup, check, isConfigured, releasesUrl };
+module.exports = { setup, check, readUpdateConfig, releasesUrl };

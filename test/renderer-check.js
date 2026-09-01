@@ -198,7 +198,129 @@ app.whenReady().then(async () => {
     'beyaz gurultu bastirildi',
     `giris ${dsp.inRms.toFixed(4)} -> cikis ${dsp.outRms.toFixed(4)}  (${reduction.toFixed(1)} dB)`);
 
-  console.log('\n6) Konsol hatalari');
+  console.log('\n6) Genel kullanim duzeltmeleri');
+
+  // Bas-konus tusu duz bir harf olabilir; mesaj yazarken tetiklenmemeli
+  const typing = await js(`(() => {
+    const a = window.app;
+    return {
+      composer: a.isTyping({ target: document.querySelector('#inpMessage') }),
+      input: a.isTyping({ target: document.querySelector('#inpName') }),
+      body: a.isTyping({ target: document.body })
+    };
+  })()`);
+  ok(typing.composer === true, 'mesaj kutusu "yaziyor" sayiliyor (PTT tetiklenmez)');
+  ok(typing.input === true, 'metin kutusu "yaziyor" sayiliyor');
+  ok(typing.body === false, 'bos alanda PTT calisabilir');
+
+  // Kulakligi kapatip acinca mikrofon eski haline donmeli
+  const deafen = await js(`(() => {
+    const a = window.app;
+    a.state.self = { id: 'x', username: 'Test', color: '#5b8cff', status: 'online' };
+    a.state.muted = false;
+    a.state.deafened = false;
+    a.toggleDeafen();
+    const whileDeaf = { muted: a.state.muted, deafened: a.state.deafened };
+    a.toggleDeafen();
+    const after = { muted: a.state.muted, deafened: a.state.deafened };
+
+    // Zaten kapali mikrofonla kulaklik kapatilip acilirsa kapali kalmali
+    a.state.muted = true; a.state.deafened = false; a._mutedBeforeDeafen = undefined;
+    a.toggleDeafen(); a.toggleDeafen();
+    const stayMuted = a.state.muted;
+    return { whileDeaf, after, stayMuted };
+  })()`);
+  ok(deafen.whileDeaf.muted === true, 'kulaklik kapatilinca mikrofon da kapaniyor');
+  ok(deafen.after.muted === false && deafen.after.deafened === false,
+    'kulaklik geri acilinca mikrofon da geri geliyor');
+  ok(deafen.stayMuted === true, 'zaten kapali mikrofon kendiliginden acilmiyor');
+
+  // Yukari kaydirmisken gelen mesaj icin gosterge
+  const jump = await js(`(() => {
+    const c = window.app.chat;
+    c.showJumpButton(); c.showJumpButton();
+    const btn = document.querySelector('.jump-new');
+    const shown = !!(btn && btn.classList.contains('show'));
+    const txt = btn && btn.querySelector('.jn-text').textContent;
+    c.hideJumpButton();
+    const hidden = !!(btn && !btn.classList.contains('show'));
+    return { shown, txt, hidden };
+  })()`);
+  ok(jump.shown, 'yeni mesaj gostergesi cikiyor');
+  ok(jump.txt === '2 yeni mesaj', 'gosterge sayiyi yaziyor', jump.txt);
+  ok(jump.hidden, 'asagi inince gosterge kayboluyor');
+
+  // Baglanti yokken mesaj sessizce kaybolmamali
+  const offline = await js(`(() => {
+    const c = window.app.chat;
+    c.channelId = 'genel';
+    c.inputNode.textContent = 'kaybolmamali';
+    c.send();
+    return {
+      korundu: c.inputNode.innerText.trim(),
+      uyari: !!document.querySelector('.toast.err')
+    };
+  })()`);
+  ok(offline.korundu === 'kaybolmamali', 'baglanti yokken mesaj kutuda kaliyor');
+  ok(offline.uyari, 'kullaniciya hata bildirimi gosteriliyor');
+
+  console.log('\n7) Guncelleme yapilandirmasi');
+  // Bu bolum iki gercek hatayi yakalamak icin var:
+  //  - updater.js'te fs require edilmemisti, ReferenceError sessiz catch'e dusuyordu
+  //  - module.exports kaldirilmis bir fonksiyona atif yapiyordu, modul hic yuklenmiyordu
+  let updaterOk = true;
+  let updaterErr = null;
+  let cfg = null;
+  let exportsOk = false;
+  try {
+    const upd = require(path.join(ROOT, 'src', 'main', 'updater.js'));
+    exportsOk = ['setup', 'check', 'readUpdateConfig', 'releasesUrl']
+      .every((k) => typeof upd[k] === 'function');
+
+    const fixture = path.join(require('os').tmpdir(), `lanchat-upd-${Date.now()}.yml`);
+    fs.writeFileSync(fixture, 'owner: test-kullanici\nrepo: test-depo\nprovider: github\n');
+    cfg = upd.readUpdateConfig(fixture);
+    fs.unlinkSync(fixture);
+  } catch (err) {
+    updaterOk = false;
+    updaterErr = err.message;
+  }
+  ok(updaterOk, 'updater modulu hatasiz yukleniyor', updaterErr);
+  ok(exportsOk, 'updater disa aktarimlari eksiksiz');
+  ok(cfg && cfg.owner === 'test-kullanici' && cfg.repo === 'test-depo',
+    'app-update.yml gercekten okunabiliyor', cfg ? JSON.stringify(cfg) : 'null');
+
+  // Giris ekranindayken ayarlara ulasilabilmeli: guncelleme bildirimi
+  // geldiginde kullanici kuracak yeri bulamiyordu.
+  const reach = await js(`(() => {
+    const btn = document.querySelector('#btnConnectSettings');
+    const visible = btn && btn.offsetParent !== null;
+    btn && btn.click();
+    const opened = !!document.querySelector('.modal-backdrop');
+    const close = document.querySelector('.modal-head .icon-btn');
+    if (close) close.click();
+    return { visible: !!visible, opened };
+  })()`);
+  ok(reach.visible, 'giris ekraninda ayarlar dugmesi gorunuyor');
+  ok(reach.opened, 'giris ekranindan ayarlar acilabiliyor');
+
+  const bar = await js(`(() => {
+    const a = window.app;
+    a.renderUpdateBar({ status: 'ready', version: '9.9.9', canAutoInstall: true });
+    const el = document.querySelector('#updateBar');
+    const shown = el && !el.classList.contains('hidden');
+    const msg = document.querySelector('#updateBarMsg').textContent;
+    const action = document.querySelector('#updateBarAction').textContent;
+    a.renderUpdateBar({ status: 'none' });
+    const hiddenAfter = document.querySelector('#updateBar').classList.contains('hidden');
+    return { shown, msg, action, hiddenAfter };
+  })()`);
+  ok(bar.shown, 'guncelleme cubugu goruntuleniyor');
+  ok(/9\.9\.9/.test(bar.msg), 'cubuk surumu yaziyor', bar.msg);
+  ok(bar.action === 'Kur ve yeniden baslat', 'cubukta dogrudan kurulum dugmesi var', bar.action);
+  ok(bar.hiddenAfter, 'guncelleme yokken cubuk gizleniyor');
+
+  console.log('\n8) Konsol hatalari');
   ok(consoleErrors.length === 0, 'renderer konsolunda hata yok', consoleErrors.join(' | ') || undefined);
 
   console.log(`\n${fails === 0 ? 'RENDERER TESTLERI GECTI' : fails + ' TEST BASARISIZ'}\n`);

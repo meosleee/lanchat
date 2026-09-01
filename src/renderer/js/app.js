@@ -141,6 +141,7 @@ class App {
       });
     });
 
+    $('#btnConnectSettings').addEventListener('click', () => this.settingsUI.open('about'));
     $('#btnAuto').addEventListener('click', () => this.autoConnect());
     $('#btnRescan').addEventListener('click', () => this.scanNetwork());
     $('#btnConnect').addEventListener('click', () => this.connect());
@@ -562,17 +563,20 @@ class App {
       this.ui.setSpeaking(down && !this.state.muted);
     });
 
-    // Guncelleme bildirimleri
-    window.lanchat.onUpdateState((st) => {
-      if (st.status === 'available' && st.version !== this._notifiedUpdate) {
-        this._notifiedUpdate = st.version;
-        toast('Yeni surum var', `LanChat v${st.version} yayinlandi. Ayarlar > Hakkinda bolumunden kurabilirsin.`, 'ok', 8000);
-      }
-      if (st.status === 'ready' && st.version !== this._notifiedReady) {
-        this._notifiedReady = st.version;
-        toast('Guncelleme hazir', `v${st.version} indirildi. Ayarlar > Hakkinda > "Kur ve yeniden baslat".`, 'ok', 9000);
-      }
+    // Guncelleme bildirimi: kullaniciyi ayarlari aramaya zorlamadan,
+    // dogrudan eyleme donusen bir cubuk gosteriyoruz.
+    $('#updateBarClose').addEventListener('click', () => {
+      $('#updateBar').classList.add('hidden');
+      this._updateBarDismissed = true;
     });
+    $('#updateBarAction').addEventListener('click', async () => {
+      const st = await window.lanchat.updateState();
+      if (st.canAutoInstall && st.status === 'ready') await window.lanchat.installUpdate();
+      else await window.lanchat.openReleases();
+    });
+
+    window.lanchat.onUpdateState((st) => this.renderUpdateBar(st));
+    window.lanchat.updateState().then((st) => this.renderUpdateBar(st));
 
     window.lanchat.onTrayAction((action) => {
       if (action === 'toggleMute') this.toggleMute();
@@ -584,7 +588,47 @@ class App {
     });
   }
 
+  /** Guncelleme durumunu ustteki cubuga yansit */
+  renderUpdateBar(st) {
+    const bar = $('#updateBar');
+    if (!bar || !st) return;
+
+    const show = st.status === 'available' || st.status === 'downloading' || st.status === 'ready';
+    if (!show) { bar.classList.add('hidden'); return; }
+
+    // Kullanici kapattiysa, yeni bir surum gelene kadar tekrar acma
+    if (this._updateBarDismissed && this._dismissedVersion === st.version) return;
+    if (st.version !== this._dismissedVersion) {
+      this._updateBarDismissed = false;
+      this._dismissedVersion = st.version;
+    }
+
+    const action = $('#updateBarAction');
+    if (st.status === 'downloading') {
+      $('#updateBarMsg').textContent = `v${st.version} indiriliyor... %${st.progress || 0}`;
+      action.classList.add('hidden');
+    } else if (st.status === 'ready') {
+      $('#updateBarMsg').textContent = `LanChat v${st.version} kuruluma hazir`;
+      action.textContent = 'Kur ve yeniden baslat';
+      action.classList.remove('hidden');
+    } else {
+      $('#updateBarMsg').textContent = `LanChat v${st.version} yayinlandi`;
+      action.textContent = st.canAutoInstall ? 'Indir' : 'Indirme sayfasini ac';
+      action.classList.remove('hidden');
+    }
+    bar.classList.remove('hidden');
+  }
+
   /* =============================== Kisayollar ============================= */
+
+  /** Olay bir yazi alanindan mi geliyor? (bas-konus tusu harf olabilir) */
+  isTyping(e) {
+    const t = e.target;
+    if (!t) return false;
+    if (t.isContentEditable) return true;
+    const tag = t.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  }
 
   bindShortcuts() {
     document.addEventListener('keydown', (e) => {
@@ -599,13 +643,14 @@ class App {
       else if (e.code === 'KeyU') { e.preventDefault(); this.ui.toggleMembers(); }
     });
 
-    // pencere odakli push-to-talk (global kisayoldan daha hassas)
+    // Pencere odakli push-to-talk (global kisayoldan daha hassas).
+    // Mesaj yazarken tetiklenmemeli: bas-konus tusu duz bir harf olabilir.
     document.addEventListener('keyup', (e) => {
       if (!this.settings.pttEnabled) return;
       if (this.matchesPtt(e)) this.audio.setPtt(undefined, false);
     });
     document.addEventListener('keydown', (e) => {
-      if (!this.settings.pttEnabled) return;
+      if (!this.settings.pttEnabled || this.isTyping(e)) return;
       if (this.matchesPtt(e)) this.audio.setPtt(undefined, true);
     });
   }
@@ -640,9 +685,19 @@ class App {
   toggleDeafen() {
     this.state.deafened = !this.state.deafened;
     this.audio.setDeafened(this.state.deafened);
-    if (this.state.deafened && !this.state.muted) {
-      this.state.muted = true;
-      this.audio.setMuted(true);
+
+    if (this.state.deafened) {
+      // Kulakligi kapatirken mikrofonu da kapatiyoruz, ama onceki
+      // durumu hatirla ki geri acinca kullanici sessiz kalmasin.
+      this._mutedBeforeDeafen = this.state.muted;
+      if (!this.state.muted) {
+        this.state.muted = true;
+        this.audio.setMuted(true);
+      }
+    } else if (this._mutedBeforeDeafen === false) {
+      this.state.muted = false;
+      this.audio.setMuted(false);
+      this._mutedBeforeDeafen = undefined;
     }
     this.pushVoiceState();
     this.ui.renderSelf();

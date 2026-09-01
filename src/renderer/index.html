@@ -27,6 +27,14 @@
     </div>
   </div>
 
+  <!-- ---------------------- Guncelleme bildirimi ----------------------- -->
+  <div id="updateBar" class="update-bar hidden">
+    <span class="ub-dot"></span>
+    <span class="ub-msg" id="updateBarMsg"></span>
+    <button class="btn small" id="updateBarAction"></button>
+    <button class="icon-btn tiny" id="updateBarClose" data-icon="close" title="Gizle"></button>
+  </div>
+
   <!-- ------------------------- Baglanti ekrani ------------------------ -->
   <div id="connectScreen" class="screen">
     <div class="connect-bg"><span></span><span></span><span></span></div>
@@ -118,6 +126,9 @@
       </section>
 
       <footer class="connect-foot">
+        <button class="btn ghost small" id="btnConnectSettings" data-icon="gear">
+          <span>Ayarlar</span>
+        </button>
         <span id="appVersionLine">LanChat</span>
       </footer>
     </div>
