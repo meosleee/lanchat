@@ -35,6 +35,13 @@ export class Voice {
     $('#railStats').addEventListener('click', () => this.showStats());
 
     $('#btnStageClose').addEventListener('click', () => this.closeStage());
+    $('#btnStageFull').addEventListener('click', () => this.toggleFullscreen());
+
+    document.addEventListener('fullscreenchange', () => {
+      const on = !!document.fullscreenElement;
+      $('#btnStageFull').textContent = on ? 'Tam ekrandan cik' : 'Tam ekran';
+      this.stage.classList.toggle('is-fullscreen', on);
+    });
     $('#btnStageFit').addEventListener('click', () => {
       this.stageGrid.querySelectorAll('.share-frame').forEach((f) => f.classList.toggle('fit'));
     });
@@ -377,8 +384,11 @@ export class Voice {
       height: { ideal: preset.height },
       frameRate: { ideal: preset.fps, max: preset.fps }
     };
-    const wantSystemAudio = window.lanchat.platform === 'win32'
-      && this.app.settings.shareSystemAudio !== false;
+    // Sistem sesi su an aktarilmiyor (mesh'te tek ses transceiver'i var, o da
+    // mikrofon icin). Buna ragmen loopback yakalamasi acmak Windows'ta ses
+    // hattini bozup yanki engellemeyi devre disi birakiyordu; bu yuzden
+    // varsayilan olarak hic istemiyoruz.
+    const wantSystemAudio = false;
 
     /** Bir kez dene: sistem sesiyle veya sessiz */
     const grab = async (withAudio) => {
@@ -578,7 +588,7 @@ export class Voice {
       el('div', { class: 'sf-label' }, el('span', { class: 'live-dot' }), el('span', {}, name)),
       statsNode
     );
-    frame.addEventListener('dblclick', () => this.stage.classList.toggle('full'));
+    frame.addEventListener('dblclick', () => this.toggleFullscreen());
 
     this.stageGrid.replaceChildren(frame);
     this.stage.classList.remove('hidden');
@@ -598,7 +608,22 @@ export class Voice {
     }, 1000);
   }
 
+  /** Paylasim karesini gercek tam ekrana al (Esc ile cikilir) */
+  async toggleFullscreen() {
+    const frame = this.stageGrid.querySelector('.share-frame');
+    if (!frame) return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await frame.requestFullscreen({ navigationUI: 'hide' });
+    } catch (err) {
+      // Tam ekran reddedilirse en azindan pencere icinde buyut
+      console.warn('[ekran] tam ekran acilamadi:', err.message);
+      this.stage.classList.toggle('full');
+    }
+  }
+
   closeStage() {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     clearInterval(this._stageStatsTimer);
     this.stage.classList.add('hidden');
     this.stage.classList.remove('full');

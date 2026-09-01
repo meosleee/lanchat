@@ -289,6 +289,18 @@ app.whenReady().then(async () => {
   const stageOpen = await js(winB, `!document.querySelector('#stage').classList.contains('hidden')`);
   ok(stageOpen, 'izleyicide paylasim sahnesi acildi');
 
+  const fullscreenInfo = await js(winB, `(() => {
+    const btn = document.querySelector('#btnStageFull');
+    const frame = document.querySelector('.share-frame');
+    return {
+      btn: !!btn,
+      label: btn && btn.textContent,
+      canFullscreen: !!(frame && frame.requestFullscreen)
+    };
+  })()`);
+  ok(fullscreenInfo.btn && fullscreenInfo.label === 'Tam ekran', 'tam ekran dugmesi var');
+  ok(fullscreenInfo.canFullscreen, 'paylasim karesi tam ekrana alinabiliyor');
+
   await js(winA, `(async () => {
     await window.app.mesh.setLocalVideoTrack(null);
     window.__shareStream.getTracks().forEach(t => t.stop());

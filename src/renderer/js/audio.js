@@ -128,6 +128,9 @@ export class AudioEngine extends Emitter {
         label: 'cihaz tercihi gevsek',
         audio: { ...processing, ...(wantId ? { deviceId: wantId } : {}) }
       },
+      // Son careye dusmeden once yanki engellemeyi mutlaka koruyoruz:
+      // AEC olmadan hoparlor kullanan biri sonsuz geri besleme dongusu yaratir.
+      { label: 'sade (yanki engelleme acik)', audio: { echoCancellation: true } },
       { label: 'varsayilan cihaz', audio: true }
     ];
 
@@ -187,10 +190,17 @@ export class AudioEngine extends Emitter {
     this.applyGain();
 
     const track = this.rawStream.getAudioTracks()[0];
-    this.emit('mic:started', {
-      label: track ? track.label : 'Mikrofon',
-      settings: track ? track.getSettings() : {}
-    });
+    const settings = track ? track.getSettings() : {};
+
+    // Surucu yanki engellemeyi gercekten uygulamis mi? Uygulamadiysa
+    // hoparlor kullanan kullanici geri besleme dongusune girer.
+    if (this.config.echoCancellation && settings.echoCancellation === false) {
+      this.emit('warning',
+        'Bu mikrofonda yanki engelleme calismiyor. Hoparlor kullaniyorsan sesin ' +
+        'karsi tarafta yankilanip dongyye girebilir - kulaklik kullanmani oneririm.');
+    }
+
+    this.emit('mic:started', { label: track ? track.label : 'Mikrofon', settings });
 
     return this.outputStream;
   }

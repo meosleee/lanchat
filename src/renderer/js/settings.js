@@ -382,13 +382,9 @@ export class SettingsUI {
         'Mesh yapida her izleyiciye ayri akis gonderilir. 3 kisi izliyorsa yukleme bant genisligin 3 katina cikar. ',
         'Yuklemen dusukse 720p15 sec.'),
       el('h3', {}, 'SISTEM SESI'),
-      window.lanchat.platform === 'win32'
-        ? this.row('Sistem sesini de paylas',
-            'Bazi ses surucileri bunu desteklemez; desteklenmiyorsa paylasim sessiz devam eder.',
-            this.toggle(app.settings.shareSystemAudio !== false,
-              (v) => app.saveSettings({ shareSystemAudio: v })))
-        : el('div', { class: 'hint' },
-            'macOS: sistem sesi yakalama isletim sistemi tarafindan desteklenmiyor. Yalnizca goruntu paylasilir.')
+      el('div', { class: 'hint' },
+        'Ekran paylasiminda su an yalnizca goruntu gonderiliyor; oyun/sistem sesi ',
+        'paylasilmiyor. Konusma sesi normal sekilde mikrofon uzerinden gider.')
     );
   }
 
